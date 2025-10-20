@@ -81,9 +81,6 @@ def transform_math_formulas(text):
     if not text:
         return text
     
-    # Prima converti la formattazione markdown per identificare i blocchi di codice
-    text_with_markdown = transform_markdown_formatting(text)
-    
     # Pattern per trovare formule tra $ ma solo fuori dai blocchi di codice
     def replace_math_outside_code(text):
         # Trova tutti i blocchi di codice (inline e block)
@@ -121,8 +118,11 @@ def transform_math_formulas(text):
         # Sostituisci le formule matematiche solo se non sono in blocchi di codice
         return re.sub(r'\$([^$]+)\$', replace_formula, text)
     
-    # Applica la trasformazione delle formule matematiche
-    result = replace_math_outside_code(text_with_markdown)
+    # Applica la trasformazione delle formule matematiche PRIMA della formattazione markdown
+    text_with_math = replace_math_outside_code(text)
+    
+    # Applica la formattazione markdown
+    result = transform_markdown_formatting(text_with_math)
     
     return result
 
