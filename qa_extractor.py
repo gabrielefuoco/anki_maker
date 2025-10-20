@@ -70,61 +70,36 @@ def transform_markdown_formatting(text):
     return text
 
 def transform_math_formulas(text):
-    """Trasforma le formule matematiche da $...$ a \\(...\\).
-    
-    Args:
-        text: Testo da trasformare
-        
-    Returns:
-        Testo con le formule trasformate
-    """
+    """Trasforma le formule matematiche da $...$ a \\(...\\) ignorando i blocchi di codice."""
     if not text:
         return text
+
+    # Pattern per trovare blocchi di codice (inline e multiline) e formule matematiche
+    pattern = re.compile(r'(```.*?```|`[^`]+`|\$[^$]+\$)', re.DOTALL)
     
-    # Prima converti la formattazione markdown per identificare i blocchi di codice
-    text_with_markdown = transform_markdown_formatting(text)
+    parts = []
+    last_end = 0
     
-    # Pattern per trovare formule tra $ ma solo fuori dai blocchi di codice
-    def replace_math_outside_code(text):
-        # Trova tutti i blocchi di codice (inline e block)
-        code_blocks = []
+    for match in pattern.finditer(text):
+        # Aggiungi il testo tra l'ultima corrispondenza e quella attuale
+        parts.append(text[last_end:match.start()])
         
-        # Trova blocchi di codice inline (`code`)
-        for match in re.finditer(r'`([^`]+)`', text):
-            code_blocks.append((match.start(), match.end()))
+        # Controlla se la corrispondenza è una formula matematica o un blocco di codice
+        part = match.group(0)
+        if part.startswith('$') and part.endswith('$'):
+            # È una formula matematica, trasformala
+            formula = part[1:-1]
+            parts.append(rf'\\({formula}\\)')
+        else:
+            # È un blocco di codice, lascialo invariato
+            parts.append(part)
         
-        # Trova blocchi di codice HTML già convertiti (<code>...</code>)
-        for match in re.finditer(r'<code[^>]*>.*?</code>', text, re.DOTALL):
-            code_blocks.append((match.start(), match.end()))
+        last_end = match.end()
         
-        # Trova blocchi di codice multilinea (```...```)
-        for match in re.finditer(r'```.*?```', text, re.DOTALL):
-            code_blocks.append((match.start(), match.end()))
-        
-        # Ordina i blocchi di codice per posizione
-        code_blocks.sort()
-        
-        def is_inside_code_block(pos):
-            """Verifica se una posizione è all'interno di un blocco di codice"""
-            for start, end in code_blocks:
-                if start <= pos < end:
-                    return True
-            return False
-        
-        def replace_formula(match):
-            # Verifica se la formula è all'interno di un blocco di codice
-            if is_inside_code_block(match.start()):
-                return match.group(0)  # Non sostituire se è dentro un blocco di codice
-            formula = match.group(1)
-            return rf'\\({formula}\\)'
-        
-        # Sostituisci le formule matematiche solo se non sono in blocchi di codice
-        return re.sub(r'\$([^$]+)\$', replace_formula, text)
+    # Aggiungi il resto del testo dopo l'ultima corrispondenza
+    parts.append(text[last_end:])
     
-    # Applica la trasformazione delle formule matematiche
-    result = replace_math_outside_code(text_with_markdown)
-    
-    return result
+    return "".join(parts)
 
 def escape_anki_html(text):
     """
@@ -193,11 +168,16 @@ def extract_qa_from_markdown(content):
                 next_risposta = re.sub(r'^(\*\*)+\s*', '', next_risposta).strip()
                 next_risposta = re.sub(r'\s*(\*\*)+$', '', next_risposta).strip()
                 
-                # Applica trasformazioni
+                # Applica trasformazioni nell'ordine corretto
+                # 1. Trasforma le formule matematiche
                 domanda_formattata = transform_math_formulas(domanda)
                 risposta_formattata = transform_math_formulas(next_risposta)
                 
-                # Escape HTML
+                # 2. Trasforma il resto del markdown in HTML
+                domanda_formattata = transform_markdown_formatting(domanda_formattata)
+                risposta_formattata = transform_markdown_formatting(risposta_formattata)
+
+                # 3. Escape dell'HTML per Anki
                 domanda_formattata = escape_anki_html(domanda_formattata)
                 risposta_formattata = escape_anki_html(risposta_formattata)
                 
